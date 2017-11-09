@@ -24,6 +24,7 @@ class ChatServer(threading.Thread):
         self.host = host
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connections = {} # current connections
+        self.passphrase = input("Passphrase: ")
         
         try:
             self.server.bind((self.host, self.port))

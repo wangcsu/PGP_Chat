@@ -44,7 +44,9 @@ class ChatClient(threading.Thread):
 
         # Currently only sends the username
         self.username = input("Username: ")
-        data = bytes(self.username, 'utf-8')
+        self.keyid = gpg.list_keys()[0]['keyid']
+        mesg = username + ":" + keyid
+        data = bytes(mesg, 'utf-8')
         self.socket.send(data)
 
         # Need to get session passphrase
