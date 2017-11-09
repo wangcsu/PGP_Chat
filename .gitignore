@@ -4,3 +4,4 @@ random_seed
 .venv
 venv3.6/
 .vscode/
+server_key/

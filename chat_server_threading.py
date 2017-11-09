@@ -1,13 +1,25 @@
 import socket, sys, threading
-
+import gnupg
 # Simple chat client that allows multiple connections via threads
 
 PORT = 9876 # the port number to run our server on
+key_home = './server_key/'
+gpg = gnupg.GPG(gnupghome=key_home)
 
 class ChatServer(threading.Thread):
     
     def __init__(self, port, host='localhost'):
         threading.Thread.__init__(self)
+        if not gpg.list_keys():
+            self.key_name = input("Name: ")
+            self.key_email = input("Email: ")
+            rsa_default = 'RSA'
+            key_type = '2048'
+            key_information = gpg.gen_key_input(name_real=self.key_name, name_email=self.key_email, key_type=rsa_default, key_length=key_type)
+            gpg.gen_key(key_information)
+            keyids = gpg.list_keys()[0]['keyid']
+            ascii_armored_public_keys = gpg.export_keys(keyids)
+            print(ascii_armored_public_keys)
         self.port = port
         self.host = host
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
