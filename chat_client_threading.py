@@ -3,8 +3,9 @@ import select
 import gnupg
 
 PORT = 9876
-key_home = './'
+key_home = './client_key'
 gpg = gnupg.GPG(gnupghome=key_home)
+server_key_id = 'D9E486E73CC89E20'
 
 class ChatClient(threading.Thread):
 
@@ -13,7 +14,6 @@ class ChatClient(threading.Thread):
         self.host = host
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.connect((self.host, port))
         # Create public/private key if doesn't exist
         if not gpg.list_keys():
             self.key_name = input("Name: ")
@@ -25,6 +25,9 @@ class ChatClient(threading.Thread):
             keyids = gpg.list_keys()[0]['keyid']
             ascii_armored_public_keys = gpg.export_keys(keyids)
             print(ascii_armored_public_keys)
+            result = gpg.recv_keys("pgp.key-server.io", server_key_id)
+            #print(result.results)
+        self.socket.connect((self.host, port))
 
     def send_message(self, msg):
         # Encrypt chat messages in this method
@@ -40,14 +43,18 @@ class ChatClient(threading.Thread):
                 print(msg)
 
     def run(self):
+        #print(gpg.list_keys())
         print("Starting Client")
-
+    
         # Currently only sends the username
         self.username = input("Username: ")
         self.keyid = gpg.list_keys()[0]['keyid']
-        mesg = username + ":" + keyid
-        data = bytes(mesg, 'utf-8')
-        self.socket.send(data)
+        mesg = self.username + ":" + self.keyid
+        msgE = gpg.encrypt(mesg, server_key_id, always_trust=True)
+        if (msgE.ok):
+            #print(msgE.data.decode('utf-8'))
+            data = msgE.data
+            self.socket.send(data)
 
         # Need to get session passphrase
         

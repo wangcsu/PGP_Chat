@@ -24,7 +24,9 @@ class ChatServer(threading.Thread):
         self.host = host
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connections = {} # current connections
+        print(gpg.list_keys()[0]['fingerprint'])
         self.passphrase = input("Passphrase: ")
+        self.client_key_ids = []
         
         try:
             self.server.bind((self.host, self.port))
@@ -75,15 +77,25 @@ class ChatServer(threading.Thread):
 
             # First message after connection is username
             data = conn.recv(1024)
-            username = data.decode('utf-8')
-            if (username not in self.connections):
-                self.connections[username] = conn
-                print(username, "connected")
-                # Need to send the encrypted session passphrase based on the keyid sent with username
-                threading.Thread(target=self.run_thread, args=(username, conn, addr)).start()
-            else:
-                conn.send(bytes(username+" already exists.  Please restart client.",'utf-8'))
-                conn.close()
+            mesg = data.decode('utf-8')
+            msgD = gpg.decrypt(mesg)
+            if (msgD.ok):
+                msg = msgD.data.decode('utf-8')
+                #print(msgD.key_id)
+                #print(msg)
+                username = msg.split(":")[0]
+                keyid = msg.split(":")[1]
+                if keyid not in self.client_key_ids:
+                    result = gpg.recv_keys("pgp.key-server.io", keyid)
+                    print(result.results)
+                if (username not in self.connections):
+                    self.connections[username] = conn
+                    print(username, "connected")
+                    # Need to send the encrypted session passphrase based on the keyid sent with username
+                    threading.Thread(target=self.run_thread, args=(username, conn, addr)).start()
+                else:
+                    conn.send(bytes(username+" already exists.  Please restart client.",'utf-8'))
+                    conn.close()
 
 if __name__ == '__main__':
     server = ChatServer(PORT)
