@@ -24,7 +24,6 @@ class ChatServer(threading.Thread):
         self.host = host
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connections = {} # current connections
-        print(gpg.list_keys()[0]['fingerprint'])
         self.passphrase = input("Passphrase: ")
         self.client_key_ids = []
         
@@ -45,7 +44,10 @@ class ChatServer(threading.Thread):
         for user in self.connections:
             if (user is not username):
                 try:
-                    self.connections[user].send(bytes(user+": "+msg,'utf-8'))
+                    msgE = gpg.encrypt(username+": "+msg, recipients=[], symmetric="AES256", passphrase=self.passphrase)
+                    if (msgE.ok):
+                        data = msgE.data
+                        self.connections[user].send(data)
                 except:
                     # broken socket connection
                     conn.close()
@@ -60,8 +62,10 @@ class ChatServer(threading.Thread):
         while True:
             try:
                 data = conn.recv(1024)
-                self.broadcast(username, data.decode('utf-8'))
-                print(username + ": " + data.decode('utf-8')) 
+                mesg = data.decode('utf-8')
+                msgD = gpg.decrypt(mesg, passphrase=self.passphrase)
+                self.broadcast(username, msgD.data.decode('utf-8'))
+                print(username + ": " + msgD.data.decode('utf-8')) 
             except:
                 self.broadcast(username, username+"(%s, %s) is offline\n" % addr)
                 conn.close() # Close
@@ -81,17 +85,18 @@ class ChatServer(threading.Thread):
             msgD = gpg.decrypt(mesg)
             if (msgD.ok):
                 msg = msgD.data.decode('utf-8')
-                #print(msgD.key_id)
-                #print(msg)
                 username = msg.split(":")[0]
                 keyid = msg.split(":")[1]
                 if keyid not in self.client_key_ids:
                     result = gpg.recv_keys("pgp.key-server.io", keyid)
-                    print(result.results)
                 if (username not in self.connections):
                     self.connections[username] = conn
                     print(username, "connected")
                     # Need to send the encrypted session passphrase based on the keyid sent with username
+                    passE = gpg.encrypt(self.passphrase, keyid, always_trust=True)
+                    if (passE.ok):
+                        data = passE.data
+                        conn.send(data)
                     threading.Thread(target=self.run_thread, args=(username, conn, addr)).start()
                 else:
                     conn.send(bytes(username+" already exists.  Please restart client.",'utf-8'))

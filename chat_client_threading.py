@@ -26,24 +26,27 @@ class ChatClient(threading.Thread):
             ascii_armored_public_keys = gpg.export_keys(keyids)
             print(ascii_armored_public_keys)
             result = gpg.recv_keys("pgp.key-server.io", server_key_id)
-            #print(result.results)
         self.socket.connect((self.host, port))
+        self.passphrase = ''
 
     def send_message(self, msg):
         # Encrypt chat messages in this method
-        data = bytes(msg, 'utf-8')
-        self.socket.send(data)
+        msgE = gpg.encrypt(msg, recipients=[], symmetric="AES256", passphrase=self.passphrase)
+        if (msgE.ok):
+            data = msgE.data
+            self.socket.send(data)
 
     def ReceiveMessage(self):
         # Decrypt chat messages in this method
         while(True):
             data = self.socket.recv(1024)
             if data:
-                msg = data.decode('utf-8')
-                print(msg)
+                msgD = gpg.decrypt(data.decode('utf-8'), passphrase=self.passphrase)
+                if (msgD.ok):
+                    msg = msgD.data.decode('utf-8')
+                    print(msg)
 
     def run(self):
-        #print(gpg.list_keys())
         print("Starting Client")
     
         # Currently only sends the username
@@ -52,12 +55,16 @@ class ChatClient(threading.Thread):
         mesg = self.username + ":" + self.keyid
         msgE = gpg.encrypt(mesg, server_key_id, always_trust=True)
         if (msgE.ok):
-            #print(msgE.data.decode('utf-8'))
             data = msgE.data
             self.socket.send(data)
 
         # Need to get session passphrase
-        
+        passData = self.socket.recv(1024)
+        passmesg = passData.decode('utf-8')
+        passphraseD = gpg.decrypt(passmesg)
+        if (passphraseD.ok):
+            self.passphrase = passphraseD.data.decode('utf-8')
+
         # Starts thread to listen for data
         threading.Thread(target=self.ReceiveMessage).start()
         
